@@ -220,17 +220,11 @@ async function startVerification() {
 }
 
 async function verifyAddress(addr) {
-  // 네이버 Geocoding API (서버리스 함수 경유)
   try {
-    const res = await fetch(`/api/geocode?address=${encodeURIComponent(addr)}`);
+    const base = 'https://route-optimizer-nu.vercel.app';
+    const res = await fetch(`${base}/api/geocode?address=${encodeURIComponent(addr)}`);
     const data = await res.json();
     if (data.addresses && data.addresses.length > 0) return 'ok';
-  } catch(e) {}
-  // 구글 Geocoding fallback
-  try {
-    const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addr)}&key=AIzaSyD-9tSrke72PouQMnMX-a7eZSW0jkFMBWY&language=ko&region=KR`);
-    const data = await res.json();
-    if (data.status === 'OK' && data.results.length > 0) return 'google';
   } catch(e) {}
   return 'error';
 }
