@@ -329,7 +329,7 @@ function renderMap(start, end) {
   const origin = encodeURIComponent(start);
   const destination = encodeURIComponent(end);
   const wps = addresses.map(a => encodeURIComponent(a.address)).join('|');
-  let src = `https://www.google.com/maps/embed/v1/directions?key=AIzaSyD-9tSrke72PouQMnMX-a7eZSW0jkFMBWY&origin=${origin}&destination=${destination}&mode=driving&language=ko`;
+  let src = `https://www.google.com/maps/embed/v1/directions?key=AIzaSyBa5BJ0YDM54qRjKlHVTy0DIZvsxO-Hdp8&origin=${origin}&destination=${destination}&mode=driving&language=ko`;
   if (wps) src += `&waypoints=optimize:true|${wps}`;
   mapDiv.innerHTML = `<iframe src="${src}" allowfullscreen loading="lazy"></iframe>`;
   const allStops = [encodeURIComponent(start), ...addresses.map(a => encodeURIComponent(a.address)), encodeURIComponent(end)];
