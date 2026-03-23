@@ -32,7 +32,7 @@ export default async function handler(req, res) {
   // 두 좌표 간 실제 도로 거리 (네이버 Directions)
   const getDist = async (from, to) => {
     try {
-      const url = `https://maps.apigw.ntruss.com/map-direction/v1/driving?start=${from.x},${from.y}&goal=${to.x},${to.y}&option=trafast`;
+      const url = `https://maps.apigw.ntruss.com/map-direction15/v1/driving?start=${from.x},${from.y}&goal=${to.x},${to.y}&option=trafast`;
       const r = await fetch(url, { headers: { 'X-NCP-APIGW-API-KEY-ID': ID, 'X-NCP-APIGW-API-KEY': SECRET } });
       const d = await r.json();
       if (d.code === 0) return d.route.trafast[0].summary.distance;
