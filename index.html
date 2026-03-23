@@ -346,16 +346,9 @@ async function buildRoute() {
 
 function renderMap(start, end) {
   const mapDiv = document.getElementById('map');
-  // 네이버 지도 검색으로 출발지 중심 표시
   const firstAddr = addresses.length > 0 ? addresses[0].address : start;
-  const src = `https://map.naver.com/p/search/${encodeURIComponent(firstAddr)}`;
-  mapDiv.innerHTML = `<iframe src="${src}" allowfullscreen loading="lazy"></iframe>`;
-
-  // 네이버 길찾기 링크 생성
-  const naverStart = encodeURIComponent(start);
-  const naverEnd = encodeURIComponent(end);
-  const waypointQuery = addresses.map(a => encodeURIComponent(a.address)).join(',');
-  const naverUrl = `https://map.naver.com/p/directions/${naverStart}/${naverEnd}?via=${waypointQuery}`;
+  mapDiv.innerHTML = `<iframe src="https://map.naver.com/p/search/${encodeURIComponent(firstAddr)}" allowfullscreen loading="lazy"></iframe>`;
+  const naverUrl = `https://map.naver.com/p/directions/-/-?c=15,0,0,0,dh&start=${encodeURIComponent(start)}&goal=${encodeURIComponent(end)}&via=${addresses.map(a=>encodeURIComponent(a.address)).join(',')}`;
   showStatus('routeStatus', 'info', `🔗 <a href="${naverUrl}" target="_blank" style="color:#03C75A;font-weight:600;">네이버지도에서 전체 경로 열기 ↗</a>`);
 }
 
