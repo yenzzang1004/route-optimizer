@@ -3,8 +3,15 @@ export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { address } = req.query;
+  let { address } = req.query;
   if (!address) return res.status(400).json({ error: 'address required' });
+
+  // 괄호 안 내용 제거, 층/호/동 등 상세주소 제거
+  address = address
+    .replace(/\(.*?\)/g, '')   // (현대지식산업센터) 제거
+    .replace(/\s+\d+층.*$/,'') // 3층, 511호 등 제거
+    .replace(/\s+[A-Z]동.*/,'') // A동 등 제거
+    .trim();
 
   try {
     const response = await fetch(
