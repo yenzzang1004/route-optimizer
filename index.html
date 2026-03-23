@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>동선 최적화</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', sans-serif; background: #f7f8fa; color: #222; min-height: 100vh; }
+  header { background: #fff; border-bottom: 1px solid #e8e8e8; padding: 18px 24px; display: flex; align-items: center; gap: 12px; }
+  header h1 { font-size: 1.2rem; font-weight: 700; color: #1a1a2e; }
+  header span { font-size: 0.85rem; color: #888; }
+  .container { max-width: 900px; margin: 32px auto; padding: 0 16px 48px; }
+  .card { background: #fff; border-radius: 14px; border: 1px solid #e8e8e8; padding: 24px; margin-bottom: 20px; }
+  .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 16px; color: #333; display: flex; align-items: center; gap: 8px; }
+  .step-badge { background: #4f46e5; color: #fff; border-radius: 50%; width: 22px; height: 22px; font-size: 0.75rem; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  input[type="text"] { width: 100%; padding: 10px 14px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.95rem; outline: none; transition: border 0.2s; }
+  input[type="text"]:focus { border-color: #4f46e5; }
+  input[type="text"]:disabled { background: #f5f5f5; color: #999; cursor: not-allowed; }
+  .addr-row { display: flex; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .addr-row input { flex: 1; }
+  .checkbox-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .checkbox-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: #4f46e5; cursor: pointer; }
+  .checkbox-row label { font-size: 0.88rem; color: #666; cursor: pointer; }
+  .btn { padding: 10px 18px; border-radius: 8px; border: none; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.15s; }
+  .btn-primary { background: #4f46e5; color: #fff; }
+  .btn-primary:hover { background: #4338ca; }
+  .btn-secondary { background: #f0f0f5; color: #444; }
+  .btn-secondary:hover { background: #e4e4ee; }
+  .btn-outline { background: #fff; border: 1px solid #ddd; color: #555; }
+  .btn-outline:hover { border-color: #4f46e5; color: #4f46e5; }
+  .btn-sm { padding: 5px 10px; font-size: 0.78rem; border-radius: 6px; }
+  .upload-area { border: 2px dashed #d0d0e0; border-radius: 10px; padding: 32px; text-align: center; cursor: pointer; transition: all 0.2s; background: #fafafa; }
+  .upload-area:hover, .upload-area.drag { border-color: #4f46e5; background: #f0efff; }
+  .upload-area p { color: #888; font-size: 0.9rem; margin-top: 8px; }
+  #fileInput { display: none; }
+  #map { width: 100%; height: 420px; border-radius: 10px; background: #e8e8f0; display: flex; align-items: center; justify-content: center; color: #aaa; overflow: hidden; }
+  #map iframe { width: 100%; height: 100%; border: none; border-radius: 10px; }
+  .preview-table { width: 100%; border-collapse: collapse; font-size: 0.87rem; }
+  .preview-table th { background: #f5f5fa; padding: 10px 12px; text-align: left; font-weight: 600; color: #555; border-bottom: 1px solid #eee; white-space: nowrap; }
+  .preview-table td { padding: 10px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+  .preview-table tr:last-child td { border-bottom: none; }
+  .preview-table tr.done td { opacity: 0.4; }
+  .preview-table tr.done .place-name { text-decoration: line-through; }
+  .order-badge { background: #4f46e5; color: #fff; border-radius: 50%; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: 700; }
+  .order-badge.done-badge { background: #22c55e; }
+  .order-badge.error-badge { background: #ef4444; }
+  .map-btns { display: flex; gap: 5px; flex-wrap: wrap; }
+  .btn-kakao { background: #FEE500; color: #3A1D1D; border: none; border-radius: 6px; padding: 5px 10px; font-size: 0.78rem; font-weight: 700; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+  .btn-naver { background: #03C75A; color: #fff; border: none; border-radius: 6px; padding: 5px 10px; font-size: 0.78rem; font-weight: 700; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+  .check-btn { background: #f0fdf4; border: 1px solid #bbf7d0; color: #16a34a; border-radius: 6px; padding: 5px 10px; font-size: 0.78rem; font-weight: 700; cursor: pointer; white-space: nowrap; }
+  .check-btn.checked { background: #22c55e; color: #fff; border-color: #22c55e; }
+  .progress-bar-wrap { background: #f0f0f5; border-radius: 20px; height: 8px; margin-bottom: 16px; overflow: hidden; }
+  .progress-bar { background: #22c55e; height: 100%; border-radius: 20px; transition: width 0.4s; }
+  .progress-text { font-size: 0.85rem; color: #666; margin-bottom: 8px; }
+  .status { padding: 10px 14px; border-radius: 8px; font-size: 0.88rem; margin-bottom: 10px; }
+  .status.info { background: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; }
+  .status.success { background: #f0fdf4; color: #16a34a; border: 1px solid #bbf7d0; }
+  .status.error { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; }
+  .status.warning { background: #fffbeb; color: #d97706; border: 1px solid #fde68a; }
+  .addr-error-tag { display: inline-flex; align-items: center; gap: 4px; background: #fee2e2; color: #dc2626; border-radius: 4px; padding: 2px 7px; font-size: 0.75rem; font-weight: 600; }
+  .addr-ok-tag { display: inline-flex; align-items: center; gap: 4px; background: #dcfce7; color: #16a34a; border-radius: 4px; padding: 2px 7px; font-size: 0.75rem; font-weight: 600; }
+  .addr-checking-tag { display: inline-flex; align-items: center; gap: 4px; background: #f0f0f5; color: #888; border-radius: 4px; padding: 2px 7px; font-size: 0.75rem; }
+  .edit-area { display: none; background: #fff8f8; border: 1px solid #fca5a5; border-radius: 8px; padding: 10px; margin-top: 6px; }
+  .edit-area.open { display: block; }
+  .edit-area input { font-size: 0.85rem; padding: 7px 10px; border: 1px solid #fca5a5; }
+  .hidden { display: none; }
+  .tag { background: #ede9fe; color: #5b21b6; border-radius: 4px; padding: 2px 7px; font-size: 0.78rem; font-weight: 600; }
+  .verify-summary { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 12px; }
+  .verify-chip { border-radius: 20px; padding: 4px 12px; font-size: 0.82rem; font-weight: 600; }
+  .chip-ok { background: #dcfce7; color: #16a34a; }
+  .chip-err { background: #fee2e2; color: #dc2626; }
+  .chip-checking { background: #f0f0f5; color: #888; }
+</style>
+</head>
+<body>
+
+<header>
+  <div style="font-size:1.5rem">🗺️</div>
+  <div>
+    <h1>배달 동선 최적화</h1>
+    <span>효율적인 경로를 빠르고 쉽게</span>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- 사용 안내 -->
+  <div class="card">
+    <h2 style="cursor:pointer;justify-content:space-between;" onclick="toggleGuide()">
+      <span style="display:flex;align-items:center;gap:8px;">📖 사용 방법 안내</span>
+      <span id="guideArrow" style="font-size:0.9rem;color:#aaa;">▲ 접기</span>
+    </h2>
+    <div id="guideContent">
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(175px,1fr));gap:12px;">
+        <div style="background:#f5f4ff;border-radius:10px;padding:14px;"><div style="font-size:1.4rem;margin-bottom:5px;">📥</div><div style="font-weight:700;font-size:0.88rem;margin-bottom:3px;">① 양식 다운로드</div><div style="font-size:0.8rem;color:#666;">엑셀 양식 파일을 받으세요.</div></div>
+        <div style="background:#f0fdf4;border-radius:10px;padding:14px;"><div style="font-size:1.4rem;margin-bottom:5px;">✏️</div><div style="font-weight:700;font-size:0.88rem;margin-bottom:3px;">② 주소 입력</div><div style="font-size:0.8rem;color:#666;">장소명과 주소를 한 줄씩 입력하고 저장하세요.</div></div>
+        <div style="background:#fffbeb;border-radius:10px;padding:14px;"><div style="font-size:1.4rem;margin-bottom:5px;">📍</div><div style="font-weight:700;font-size:0.88rem;margin-bottom:3px;">③ 출발·도착지 설정</div><div style="font-size:0.8rem;color:#666;">같은 경우 체크박스를 활용하세요.</div></div>
+        <div style="background:#eff6ff;border-radius:10px;padding:14px;"><div style="font-size:1.4rem;margin-bottom:5px;">🔍</div><div style="font-weight:700;font-size:0.88rem;margin-bottom:3px;">④ 주소 자동 검증</div><div style="font-size:0.8rem;color:#666;">불확실한 주소는 빨간색으로 표시돼요.</div></div>
+        <div style="background:#fdf2f8;border-radius:10px;padding:14px;"><div style="font-size:1.4rem;margin-bottom:5px;">✏️</div><div style="font-weight:700;font-size:0.88rem;margin-bottom:3px;">⑤ 주소 수정</div><div style="font-size:0.8rem;color:#666;">빨간 주소는 바로 수정 후 재검증할 수 있어요.</div></div>
+        <div style="background:#f0fdf4;border-radius:10px;padding:14px;"><div style="font-size:1.4rem;margin-bottom:5px;">✅</div><div style="font-weight:700;font-size:0.88rem;margin-bottom:3px;">⑥ 완료 체크</div><div style="font-size:0.8rem;color:#666;">배달 완료한 곳을 체크해 진행 상황을 관리하세요.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="card">
+    <h2><span class="step-badge">1</span> 출발지 / 도착지 입력</h2>
+    <div class="addr-row">
+      <input type="text" id="startAddr" placeholder="출발지 주소 (예: 서울시 마포구 공덕동 123)">
+    </div>
+    <div class="checkbox-row">
+      <input type="checkbox" id="sameAsStart" onchange="toggleSameAddr()">
+      <label for="sameAsStart">도착지가 출발지와 동일해요</label>
+    </div>
+    <div class="addr-row" id="endAddrRow">
+      <input type="text" id="endAddr" placeholder="도착지 주소 (예: 서울시 마포구 공덕동 123)">
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="card">
+    <h2><span class="step-badge">2</span> 주소 목록 업로드</h2>
+    <div style="margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <button class="btn btn-outline" onclick="downloadTemplate()">📥 엑셀 양식 다운로드</button>
+      <span style="font-size:0.82rem;color:#999;">← 장소명/주소 입력 후 업로드하세요</span>
+    </div>
+    <div class="upload-area" id="uploadArea" onclick="document.getElementById('fileInput').click()">
+      <div style="font-size:2rem;">📂</div>
+      <strong>엑셀 파일을 클릭하거나 여기에 드래그하세요</strong>
+      <p>.xlsx / .xls 파일 지원</p>
+    </div>
+    <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleFile(event)">
+    <div id="uploadStatus"></div>
+  </div>
+
+  <!-- STEP 3: 검증 -->
+  <div class="card hidden" id="verifyCard">
+    <h2><span class="step-badge">3</span> 주소 검증 결과</h2>
+    <div id="verifySummary" class="verify-summary"></div>
+    <div id="verifyStatus"></div>
+    <table class="preview-table">
+      <thead><tr><th>#</th><th>장소명</th><th>주소</th><th>검증 결과</th><th>수정</th></tr></thead>
+      <tbody id="verifyBody"></tbody>
+    </table>
+    <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+      <button class="btn btn-primary" id="buildRouteBtn" onclick="buildRoute()" disabled>🗺️ 경로 생성</button>
+      <span style="font-size:0.82rem;color:#999;">※ 오류 주소 수정 후 생성하거나, 그냥 생성할 수도 있어요.</span>
+    </div>
+  </div>
+
+  <!-- STEP 4: 경로 -->
+  <div class="card hidden" id="resultCard">
+    <h2><span class="step-badge">4</span> 최적 경로 <span class="tag" id="countTag"></span></h2>
+    <div id="routeStatus"></div>
+    <div class="progress-text" id="progressText"></div>
+    <div class="progress-bar-wrap"><div class="progress-bar" id="progressBar" style="width:0%"></div></div>
+    <div id="map">지도를 불러오는 중...</div>
+    <div style="margin-top:20px;">
+      <table class="preview-table">
+        <thead><tr><th style="width:46px">순서</th><th>장소명</th><th>주소</th><th>바로가기</th><th style="width:74px">완료</th></tr></thead>
+        <tbody id="routeBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+let addresses = [];
+let doneStates = [];
+let verifyResults = [];
+
+const ua = document.getElementById('uploadArea');
+ua.addEventListener('dragover', e => { e.preventDefault(); ua.classList.add('drag'); });
+ua.addEventListener('dragleave', () => ua.classList.remove('drag'));
+ua.addEventListener('drop', e => { e.preventDefault(); ua.classList.remove('drag'); if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]); });
+
+function handleFile(e) { if (e.target.files[0]) processFile(e.target.files[0]); }
+
+function processFile(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'binary' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+      const rows = data.slice(1).filter(r => r[0] || r[1]);
+      if (!rows.length) { showStatus('uploadStatus', 'error', '데이터가 없습니다.'); return; }
+      const start = document.getElementById('startAddr').value.trim();
+      const end = document.getElementById('endAddr').value.trim();
+      if (!start) { showStatus('uploadStatus', 'error', '출발지를 먼저 입력해주세요!'); return; }
+      if (!end) { showStatus('uploadStatus', 'error', '도착지를 입력하거나 "출발지와 동일" 체크를 해주세요!'); return; }
+      addresses = rows.map(r => ({ name: (r[0]||'').toString().trim(), address: (r[1]||'').toString().trim() })).filter(r => r.address);
+      doneStates = new Array(addresses.length).fill(false);
+      verifyResults = new Array(addresses.length).fill('checking');
+      showStatus('uploadStatus', 'success', `✅ ${addresses.length}개 장소 불러오기 완료! 주소를 검증합니다...`);
+      startVerification();
+    } catch(err) { showStatus('uploadStatus', 'error', '파일을 읽을 수 없습니다.'); }
+  };
+  reader.readAsBinaryString(file);
+}
+
+async function startVerification() {
+  document.getElementById('verifyCard').classList.remove('hidden');
+  document.getElementById('resultCard').classList.add('hidden');
+  renderVerifyTable();
+  updateVerifySummary();
+  for (let i = 0; i < addresses.length; i++) {
+    const result = await verifyAddress(addresses[i].address);
+    verifyResults[i] = result;
+    updateVerifyRow(i, result);
+    updateVerifySummary();
+  }
+  const errCount = verifyResults.filter(r => r === 'error').length;
+  if (errCount === 0) showStatus('verifyStatus', 'success', '✅ 모든 주소가 확인되었습니다!');
+  else showStatus('verifyStatus', 'warning', `⚠️ ${errCount}개 주소를 확인할 수 없습니다. 수정 후 경로를 생성하세요.`);
+  document.getElementById('buildRouteBtn').disabled = false;
+}
+
+async function verifyAddress(addr) {
+  // 네이버 Geocoding API (서버리스 함수 경유)
+  try {
+    const res = await fetch(`/api/geocode?address=${encodeURIComponent(addr)}`);
+    const data = await res.json();
+    if (data.addresses && data.addresses.length > 0) return 'ok';
+  } catch(e) {}
+  // 구글 Geocoding fallback
+  try {
+    const res = await fetch(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(addr)}&key=AIzaSyD-9tSrke72PouQMnMX-a7eZSW0jkFMBWY&language=ko&region=KR`);
+    const data = await res.json();
+    if (data.status === 'OK' && data.results.length > 0) return 'google';
+  } catch(e) {}
+  return 'error';
+}
+
+function renderVerifyTable() {
+  const tbody = document.getElementById('verifyBody');
+  tbody.innerHTML = '';
+  addresses.forEach((item, i) => {
+    const tr = document.createElement('tr');
+    tr.id = `vrow-${i}`;
+    tr.innerHTML = `<td>${i+1}</td><td>${item.name||'-'}</td><td id="vaddr-${i}">${item.address}</td><td id="vtag-${i}"><span class="addr-checking-tag">🔍 검증 중...</span></td><td id="vedit-cell-${i}">-</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function updateVerifyRow(i, result) {
+  const row = document.getElementById(`vrow-${i}`);
+  const tagCell = document.getElementById(`vtag-${i}`);
+  const editCell = document.getElementById(`vedit-cell-${i}`);
+  if (result === 'ok') {
+    row.style.background = '';
+    tagCell.innerHTML = `<span class="addr-ok-tag">✅ 네이버 확인</span>`;
+    editCell.innerHTML = `-`;
+  } else if (result === 'google') {
+    row.style.background = '';
+    tagCell.innerHTML = `<span class="addr-ok-tag" style="background:#dbeafe;color:#1d4ed8;">✅ 구글 확인</span>`;
+    editCell.innerHTML = `-`;
+  } else {
+    row.style.background = '#fff5f5';
+    tagCell.innerHTML = `<span class="addr-error-tag">❌ 주소 불확실</span>`;
+    editCell.innerHTML = `<button class="btn btn-sm" style="background:#fee2e2;color:#dc2626;border:1px solid #fca5a5;border-radius:6px;padding:5px 10px;font-size:0.78rem;font-weight:700;cursor:pointer;" onclick="openEdit(${i})">✏️ 수정 필요</button>`;
+  }
+}
+
+function openEdit(i) {
+  document.querySelectorAll('.edit-area.open').forEach(el => el.classList.remove('open'));
+  const addrCell = document.getElementById(`vaddr-${i}`);
+  const existing = document.getElementById(`veditbox-${i}`);
+  if (existing) { existing.remove(); return; }
+  const div = document.createElement('div');
+  div.className = 'edit-area open';
+  div.id = `veditbox-${i}`;
+  div.innerHTML = `
+    <div style="font-size:0.8rem;color:#dc2626;margin-bottom:6px;font-weight:600;">⚠️ 주소를 수정하고 재검증하세요</div>
+    <div style="display:flex;gap:6px;">
+      <input type="text" id="editinput-${i}" value="${addresses[i].address}" placeholder="정확한 주소 입력">
+      <button class="btn btn-sm btn-primary" onclick="applyEdit(${i})">재검증</button>
+      <button class="btn btn-sm btn-secondary" onclick="cancelEdit(${i})">취소</button>
+    </div>
+    <div style="margin-top:6px;display:flex;gap:10px;">
+      <a href="https://map.naver.com/p/search/${encodeURIComponent(addresses[i].address)}" target="_blank" style="font-size:0.78rem;color:#03C75A;text-decoration:none;font-weight:600;">🟢 네이버지도에서 검색 ↗</a>
+      <a href="https://map.kakao.com/?q=${encodeURIComponent(addresses[i].address)}" target="_blank" style="font-size:0.78rem;color:#b59000;text-decoration:none;font-weight:600;">🟡 카카오맵에서 검색 ↗</a>
+    </div>`;
+  addrCell.appendChild(div);
+}
+
+function cancelEdit(i) { const b = document.getElementById(`veditbox-${i}`); if (b) b.remove(); }
+
+async function applyEdit(i) {
+  const newAddr = document.getElementById(`editinput-${i}`).value.trim();
+  if (!newAddr) return;
+  addresses[i].address = newAddr;
+  document.getElementById(`vaddr-${i}`).childNodes[0].textContent = newAddr;
+  cancelEdit(i);
+  verifyResults[i] = 'checking';
+  document.getElementById(`vtag-${i}`).innerHTML = `<span class="addr-checking-tag">🔍 재검증 중...</span>`;
+  const result = await verifyAddress(newAddr);
+  verifyResults[i] = result;
+  updateVerifyRow(i, result);
+  updateVerifySummary();
+  const errCount = verifyResults.filter(r => r === 'error').length;
+  if (errCount === 0) showStatus('verifyStatus', 'success', '✅ 모든 주소가 확인되었습니다!');
+  else showStatus('verifyStatus', 'warning', `⚠️ ${errCount}개 주소를 아직 확인할 수 없습니다.`);
+}
+
+function updateVerifySummary() {
+  const ok = verifyResults.filter(r => r === 'ok').length;
+  const google = verifyResults.filter(r => r === 'google').length;
+  const err = verifyResults.filter(r => r === 'error').length;
+  const checking = verifyResults.filter(r => r === 'checking').length;
+  let html = '';
+  if (ok) html += `<span class="verify-chip chip-ok">✅ 네이버 확인 ${ok}개</span>`;
+  if (google) html += `<span class="verify-chip" style="background:#dbeafe;color:#1d4ed8;">✅ 구글 확인 ${google}개</span>`;
+  if (err) html += `<span class="verify-chip chip-err">❌ 불확실 ${err}개</span>`;
+  if (checking) html += `<span class="verify-chip chip-checking">🔍 검증 중 ${checking}개</span>`;
+  document.getElementById('verifySummary').innerHTML = html;
+}
+
+function buildRoute() {
+  const start = document.getElementById('startAddr').value.trim();
+  const end = document.getElementById('endAddr').value.trim();
+  document.getElementById('resultCard').classList.remove('hidden');
+  document.getElementById('countTag').textContent = `총 ${addresses.length}곳`;
+  updateProgress();
+  renderMap(start, end);
+  renderRouteTable();
+  document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth' });
+}
+
+function renderMap(start, end) {
+  const mapDiv = document.getElementById('map');
+  const origin = encodeURIComponent(start);
+  const destination = encodeURIComponent(end);
+  const wps = addresses.map(a => encodeURIComponent(a.address)).join('|');
+  let src = `https://www.google.com/maps/embed/v1/directions?key=AIzaSyD-9tSrke72PouQMnMX-a7eZSW0jkFMBWY&origin=${origin}&destination=${destination}&mode=driving&language=ko`;
+  if (wps) src += `&waypoints=optimize:true|${wps}`;
+  mapDiv.innerHTML = `<iframe src="${src}" allowfullscreen loading="lazy"></iframe>`;
+  const allStops = [encodeURIComponent(start), ...addresses.map(a => encodeURIComponent(a.address)), encodeURIComponent(end)];
+  showStatus('routeStatus', 'info', `🔗 <a href="https://www.google.com/maps/dir/${allStops.join('/')}" target="_blank" style="color:#2563eb;font-weight:600;">Google Maps에서 전체 경로 열기 ↗</a>`);
+}
+
+function renderRouteTable() {
+  const tbody = document.getElementById('routeBody');
+  tbody.innerHTML = '';
+  addresses.forEach((item, i) => {
+    const tr = document.createElement('tr');
+    tr.id = `row-${i}`;
+    if (doneStates[i]) tr.classList.add('done');
+    const isErr = verifyResults[i] === 'error';
+    const addrStyle = isErr ? 'color:#dc2626;font-weight:600;' : 'color:#555;';
+    const addrSuffix = isErr ? ' <span class="addr-error-tag" style="font-size:0.7rem;">❌</span>' : '';
+    const kakaoUrl = `https://map.kakao.com/link/to/${encodeURIComponent(item.name||item.address)},${encodeURIComponent(item.address)}`;
+    const naverUrl = `https://map.naver.com/p/search/${encodeURIComponent(item.address)}`;
+    const badgeClass = doneStates[i] ? 'order-badge done-badge' : isErr ? 'order-badge error-badge' : 'order-badge';
+    tr.innerHTML = `
+      <td><span class="${badgeClass}" id="badge-${i}">${doneStates[i]?'✓':i+1}</span></td>
+      <td><span class="place-name">${item.name||'-'}</span></td>
+      <td style="${addrStyle}font-size:0.83rem;">${item.address}${addrSuffix}</td>
+      <td><div class="map-btns"><a class="btn-kakao" href="${kakaoUrl}" target="_blank">🟡 카카오맵</a><a class="btn-naver" href="${naverUrl}" target="_blank">🟢 네이버지도</a></div></td>
+      <td><button class="${doneStates[i]?'check-btn checked':'check-btn'}" id="chk-${i}" onclick="toggleDone(${i})">${doneStates[i]?'✓ 완료':'완료'}</button></td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+function toggleDone(i) {
+  doneStates[i] = !doneStates[i];
+  const isErr = verifyResults[i] === 'error';
+  const badge = document.getElementById(`badge-${i}`);
+  const btn = document.getElementById(`chk-${i}`);
+  const tr = document.getElementById(`row-${i}`);
+  if (doneStates[i]) { tr.classList.add('done'); badge.className='order-badge done-badge'; badge.textContent='✓'; btn.className='check-btn checked'; btn.textContent='✓ 완료'; }
+  else { tr.classList.remove('done'); badge.className=isErr?'order-badge error-badge':'order-badge'; badge.textContent=i+1; btn.className='check-btn'; btn.textContent='완료'; }
+  updateProgress();
+}
+
+function updateProgress() {
+  const total = addresses.length, done = doneStates.filter(Boolean).length;
+  document.getElementById('progressText').textContent = `${done} / ${total} 완료`;
+  document.getElementById('progressBar').style.width = (total?Math.round(done/total*100):0)+'%';
+}
+
+function toggleSameAddr() {
+  const checked = document.getElementById('sameAsStart').checked;
+  const endInput = document.getElementById('endAddr');
+  if (checked) { endInput.value = document.getElementById('startAddr').value; endInput.disabled = true; document.getElementById('endAddrRow').style.opacity='0.5'; }
+  else { endInput.disabled=false; endInput.value=''; document.getElementById('endAddrRow').style.opacity='1'; }
+}
+document.getElementById('startAddr').addEventListener('input', function() {
+  if (document.getElementById('sameAsStart').checked) document.getElementById('endAddr').value = this.value;
+});
+
+function showStatus(id, type, msg) {
+  document.getElementById(id).innerHTML = `<div class="status ${type}" style="margin-top:10px">${msg}</div>`;
+}
+function toggleGuide() {
+  const c=document.getElementById('guideContent'), a=document.getElementById('guideArrow');
+  const h=c.style.display==='none'; c.style.display=h?'':'none'; a.textContent=h?'▲ 접기':'▼ 펼치기';
+}
+function downloadTemplate() {
+  const wb=XLSX.utils.book_new();
+  const ws=XLSX.utils.aoa_to_sheet([['장소명','주소'],['예시: 김○○ 어르신 댁','서울시 마포구 공덕동 123-4'],['예시: ○○경로당','서울시 마포구 아현동 56-7']]);
+  ws['!cols']=[{wch:20},{wch:40}];
+  XLSX.utils.book_append_sheet(wb,ws,'배달목록');
+  XLSX.writeFile(wb,'배달목록_양식.xlsx');
+}
+</script>
+</body>
+</html>
