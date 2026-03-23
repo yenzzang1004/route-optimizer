@@ -248,10 +248,6 @@ function updateVerifyRow(i, result) {
     row.style.background = '';
     tagCell.innerHTML = `<span class="addr-ok-tag">✅ 네이버 확인</span>`;
     editCell.innerHTML = `-`;
-  } else if (result === 'google') {
-    row.style.background = '';
-    tagCell.innerHTML = `<span class="addr-ok-tag" style="background:#dbeafe;color:#1d4ed8;">✅ 구글 확인</span>`;
-    editCell.innerHTML = `-`;
   } else {
     row.style.background = '#fff5f5';
     tagCell.innerHTML = `<span class="addr-error-tag">❌ 주소 불확실</span>`;
@@ -302,26 +298,50 @@ async function applyEdit(i) {
 
 function updateVerifySummary() {
   const ok = verifyResults.filter(r => r === 'ok').length;
-  const google = verifyResults.filter(r => r === 'google').length;
   const err = verifyResults.filter(r => r === 'error').length;
   const checking = verifyResults.filter(r => r === 'checking').length;
   let html = '';
   if (ok) html += `<span class="verify-chip chip-ok">✅ 네이버 확인 ${ok}개</span>`;
-  if (google) html += `<span class="verify-chip" style="background:#dbeafe;color:#1d4ed8;">✅ 구글 확인 ${google}개</span>`;
   if (err) html += `<span class="verify-chip chip-err">❌ 불확실 ${err}개</span>`;
   if (checking) html += `<span class="verify-chip chip-checking">🔍 검증 중 ${checking}개</span>`;
   document.getElementById('verifySummary').innerHTML = html;
 }
 
-function buildRoute() {
+async function buildRoute() {
   const start = document.getElementById('startAddr').value.trim();
   const end = document.getElementById('endAddr').value.trim();
   document.getElementById('resultCard').classList.remove('hidden');
   document.getElementById('countTag').textContent = `총 ${addresses.length}곳`;
+  document.getElementById('map').innerHTML = '<div style="padding:20px;color:#888;">⏳ 최적 경로를 계산하는 중...</div>';
+  document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth' });
+
+  // 구글 Directions API로 최적 순서 계산
+  try {
+    const res = await fetch('https://route-optimizer-nu.vercel.app/api/directions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        origin: start,
+        destination: end,
+        waypoints: addresses.map(a => a.address)
+      })
+    });
+    const data = await res.json();
+    if (data.status === 'OK' && data.order && data.order.length > 0) {
+      const optimized = data.order.map(i => addresses[i]);
+      const optimizedVerify = data.order.map(i => verifyResults[i]);
+      addresses = optimized;
+      verifyResults = optimizedVerify;
+      doneStates = new Array(addresses.length).fill(false);
+      showStatus('routeStatus', 'success', '✅ 최적 경로로 순서가 재정렬되었습니다!');
+    }
+  } catch(e) {
+    console.log('경로 최적화 실패, 원래 순서 유지');
+  }
+
   updateProgress();
   renderMap(start, end);
   renderRouteTable();
-  document.getElementById('resultCard').scrollIntoView({ behavior: 'smooth' });
 }
 
 function renderMap(start, end) {
