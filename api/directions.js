@@ -9,8 +9,8 @@ export default async function handler(req, res) {
   let body = req.body;
   if (typeof body === 'string') { try { body = JSON.parse(body); } catch(e) {} }
 
-  const { origin, destination, waypoints } = body || {};
-  if (!origin || !destination) return res.status(400).json({ error: 'origin and destination required' });
+  const { origin, waypoints } = body || {};
+  if (!origin || !waypoints) return res.status(400).json({ error: 'origin and waypoints required' });
 
   const ID = process.env.NAVER_CLIENT_ID;
   const SECRET = process.env.NAVER_CLIENT_SECRET;
@@ -29,31 +29,19 @@ export default async function handler(req, res) {
     return null;
   };
 
-  // 두 좌표 간 실제 도로 거리 (네이버 Directions)
-  const getDist = async (from, to) => {
-    try {
-      const url = `https://maps.apigw.ntruss.com/map-direction15/v1/driving?start=${from.x},${from.y}&goal=${to.x},${to.y}&option=trafast`;
-      const r = await fetch(url, { headers: { 'X-NCP-APIGW-API-KEY-ID': ID, 'X-NCP-APIGW-API-KEY': SECRET } });
-      const d = await r.json();
-      if (d.code === 0) return d.route.trafast[0].summary.distance;
-    } catch(e) {}
-    // fallback: 직선 거리
-    return Math.sqrt(Math.pow(from.x - to.x, 2) + Math.pow(from.y - to.y, 2)) * 111000;
-  };
+  // 두 좌표 간 직선 거리 (빠른 계산용)
+  const getDist = (a, b) => Math.sqrt(Math.pow(a.x - b.x, 2) + Math.pow(a.y - b.y, 2));
 
   try {
-    // 1. 모든 주소 좌표 변환
+    // 1. 출발지 좌표 변환
     const originCoord = await toCoord(origin);
-    const destCoord = await toCoord(destination);
+    if (!originCoord) return res.status(200).json({ error: '출발지 좌표 변환 실패', order: null });
+
+    // 2. 경유지 좌표 변환
     const wpCoords = await Promise.all(waypoints.map(w => toCoord(w)));
 
-    if (!originCoord || !destCoord) return res.status(200).json({ error: 'coord failed', order: null });
-
-    const validIndices = wpCoords.map((c, i) => c ? i : null).filter(i => i !== null);
-    const validCoords = validIndices.map(i => wpCoords[i]);
-
-    // 2. Nearest Neighbor 알고리즘으로 최적 순서 계산
-    const n = validCoords.length;
+    // 3. 출발지 기준 Nearest Neighbor 최적화
+    const n = wpCoords.length;
     const visited = new Array(n).fill(false);
     const order = [];
     let current = originCoord;
@@ -61,18 +49,19 @@ export default async function handler(req, res) {
     for (let step = 0; step < n; step++) {
       let minDist = Infinity, minIdx = -1;
       for (let j = 0; j < n; j++) {
-        if (visited[j]) continue;
-        const dist = await getDist(current, validCoords[j]);
+        if (visited[j] || !wpCoords[j]) continue;
+        const dist = getDist(current, wpCoords[j]);
         if (dist < minDist) { minDist = dist; minIdx = j; }
       }
+      if (minIdx === -1) break;
       visited[minIdx] = true;
-      order.push(validIndices[minIdx]);
-      current = validCoords[minIdx];
+      order.push(minIdx);
+      current = wpCoords[minIdx];
     }
 
-    return res.status(200).json({ order, status: 'OK' });
+    return res.status(200).json({ order, status: 'OK', originCoord });
 
   } catch (err) {
-    return res.status(500).json({ error: 'directions failed', detail: err.message });
+    return res.status(500).json({ error: 'failed', detail: err.message });
   }
 }
